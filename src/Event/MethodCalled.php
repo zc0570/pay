@@ -4,32 +4,31 @@ declare(strict_types=1);
 
 namespace Yansongda\Pay\Event;
 
+use Yansongda\Pay\Rocket;
+
 class MethodCalled extends Event
 {
     /**
-     * endpoint.
-     *
      * @var string
      */
-    public $endpoint;
+    public $provider;
 
     /**
-     * payload.
-     *
+     * @var string
+     */
+    public $name;
+
+    /**
      * @var array
      */
-    public $payload;
+    public $params;
 
-    /**
-     * Bootstrap.
-     *
-     * @author yansongda <me@yansongda.cn>
-     */
-    public function __construct(string $driver, string $gateway, string $endpoint, array $payload = [])
+    public function __construct(string $provider, string $name, array $params, ?Rocket $rocket)
     {
-        $this->endpoint = $endpoint;
-        $this->payload = $payload;
+        $this->provider = $provider;
+        $this->name = $name;
+        $this->params = $params;
 
-        parent::__construct($driver, $gateway);
+        parent::__construct($rocket);
     }
 }

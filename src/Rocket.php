@@ -6,6 +6,7 @@ namespace Yansongda\Pay;
 
 use ArrayAccess;
 use JsonSerializable as JsonSerializableInterface;
+use Psr\Http\Message\MessageInterface;
 use Psr\Http\Message\RequestInterface;
 use Serializable as SerializableInterface;
 use Yansongda\Supports\Collection;
@@ -20,19 +21,19 @@ class Rocket implements JsonSerializableInterface, SerializableInterface, ArrayA
     use Serializable;
 
     /**
-     * @var \Psr\Http\Message\RequestInterface
+     * @var \Psr\Http\Message\RequestInterface|null
      */
-    private $radar;
+    private $radar = null;
 
     /**
      * @var array
      */
-    private $params;
+    private $params = [];
 
     /**
-     * @var \Yansongda\Supports\Collection
+     * @var \Yansongda\Supports\Collection|null
      */
-    private $payload;
+    private $payload = null;
 
     /**
      * @var string|null
@@ -40,16 +41,21 @@ class Rocket implements JsonSerializableInterface, SerializableInterface, ArrayA
     private $direction = null;
 
     /**
-     * @var \Yansongda\Supports\Collection|\Psr\Http\Message\ResponseInterface
+     * @var \Yansongda\Supports\Collection|\Psr\Http\Message\MessageInterface|array|null
      */
-    private $destination;
+    private $destination = null;
 
-    public function getRadar(): RequestInterface
+    /**
+     * @var \Psr\Http\Message\MessageInterface|null
+     */
+    private $destinationOrigin = null;
+
+    public function getRadar(): ?RequestInterface
     {
         return $this->radar;
     }
 
-    public function setRadar(RequestInterface $radar): Rocket
+    public function setRadar(?RequestInterface $radar): Rocket
     {
         $this->radar = $radar;
 
@@ -68,12 +74,12 @@ class Rocket implements JsonSerializableInterface, SerializableInterface, ArrayA
         return $this;
     }
 
-    public function getPayload(): Collection
+    public function getPayload(): ?Collection
     {
         return $this->payload;
     }
 
-    public function setPayload(Collection $payload): Rocket
+    public function setPayload(?Collection $payload): Rocket
     {
         $this->payload = $payload;
 
@@ -82,6 +88,10 @@ class Rocket implements JsonSerializableInterface, SerializableInterface, ArrayA
 
     public function mergePayload(array $payload): Rocket
     {
+        if (empty($this->payload)) {
+            $this->payload = new Collection();
+        }
+
         $this->payload = $this->payload->merge($payload);
 
         return $this;
@@ -100,7 +110,7 @@ class Rocket implements JsonSerializableInterface, SerializableInterface, ArrayA
     }
 
     /**
-     * @return \Psr\Http\Message\ResponseInterface|\Yansongda\Supports\Collection
+     * @return \Psr\Http\Message\MessageInterface|\Yansongda\Supports\Collection|array|null
      */
     public function getDestination()
     {
@@ -108,11 +118,23 @@ class Rocket implements JsonSerializableInterface, SerializableInterface, ArrayA
     }
 
     /**
-     * @param \Psr\Http\Message\ResponseInterface|\Yansongda\Supports\Collection $destination
+     * @param \Psr\Http\Message\MessageInterface|\Yansongda\Supports\Collection|array|null $destination
      */
     public function setDestination($destination): Rocket
     {
         $this->destination = $destination;
+
+        return $this;
+    }
+
+    public function getDestinationOrigin(): ?MessageInterface
+    {
+        return $this->destinationOrigin;
+    }
+
+    public function setDestinationOrigin(?MessageInterface $destinationOrigin): Rocket
+    {
+        $this->destinationOrigin = $destinationOrigin;
 
         return $this;
     }

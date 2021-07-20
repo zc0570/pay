@@ -8,7 +8,6 @@ use Yansongda\Pay\Contract\ConfigInterface;
 use Yansongda\Pay\Contract\LoggerInterface;
 use Yansongda\Pay\Contract\ServiceProviderInterface;
 use Yansongda\Pay\Pay;
-use Yansongda\Supports\Config;
 use Yansongda\Supports\Logger;
 
 class LoggerServiceProvider implements ServiceProviderInterface
@@ -23,26 +22,12 @@ class LoggerServiceProvider implements ServiceProviderInterface
         /* @var ConfigInterface $config */
         $config = Pay::get(ConfigInterface::class);
 
-        if (!class_exists(\Monolog\Logger::class) || false === $config->get('logger.enable', false)) {
-            return;
+        if (class_exists(\Monolog\Logger::class) && true === $config->get('logger.enable', false)) {
+            $logger = new Logger(array_merge(
+                ['identify' => 'yansongda.pay'], $config->get('logger', [])
+            ));
+
+            Pay::set(LoggerInterface::class, $logger);
         }
-
-        $logger = new class($config) extends Logger {
-            public function __construct(Config $config)
-            {
-                parent::__construct($config->get('logger', []));
-            }
-
-            /**
-             * @throws \Exception
-             */
-            public function __call(string $method, array $args): void
-            {
-                parent::__call($method, $args);
-            }
-        };
-
-        Pay::set(LoggerInterface::class, $logger);
-        Pay::set(\Psr\Log\LoggerInterface::class, $logger);
     }
 }

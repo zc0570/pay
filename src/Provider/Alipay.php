@@ -4,18 +4,30 @@ declare(strict_types=1);
 
 namespace Yansongda\Pay\Provider;
 
-use Yansongda\Pay\Contract\ShortcutInterface;
-use Yansongda\Pay\Exception\InvalidParamsException;
+use GuzzleHttp\Psr7\Response;
+use GuzzleHttp\Psr7\ServerRequest;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Yansongda\Pay\Event;
 use Yansongda\Pay\Pay;
-use Yansongda\Pay\Plugin\Alipay\FilterPlugin;
+use Yansongda\Pay\Plugin\Alipay\CallbackPlugin;
 use Yansongda\Pay\Plugin\Alipay\LaunchPlugin;
 use Yansongda\Pay\Plugin\Alipay\PreparePlugin;
 use Yansongda\Pay\Plugin\Alipay\RadarPlugin;
 use Yansongda\Pay\Plugin\Alipay\SignPlugin;
-use Yansongda\Pay\Plugin\PackerPlugin;
+use Yansongda\Pay\Plugin\ParserPlugin;
 use Yansongda\Supports\Collection;
 use Yansongda\Supports\Str;
 
+/**
+ * @method ResponseInterface app(array $order)      APP 支付
+ * @method Collection        pos(array $order)      刷卡支付
+ * @method Collection        scan(array $order)     扫码支付
+ * @method Collection        transfer(array $order) 帐户转账
+ * @method ResponseInterface wap(array $order)      手机网站支付
+ * @method ResponseInterface web(array $order)      电脑支付
+ * @method Collection        mini(array $order)     小程序支付
+ */
 class Alipay extends AbstractProvider
 {
     public const URL = [
@@ -30,24 +42,14 @@ class Alipay extends AbstractProvider
      * @throws \Yansongda\Pay\Exception\InvalidParamsException
      * @throws \Yansongda\Pay\Exception\ServiceNotFoundException
      *
-     * @return \Yansongda\Supports\Collection|\Psr\Http\Message\ResponseInterface
+     * @return \Yansongda\Supports\Collection|\Psr\Http\Message\MessageInterface
      */
     public function __call(string $shortcut, array $params)
     {
         $plugin = '\\Yansongda\\Pay\\Plugin\\Alipay\\Shortcut\\'.
             Str::studly($shortcut).'Shortcut';
 
-        if (!class_exists($plugin) || !in_array(ShortcutInterface::class, class_implements($plugin))) {
-            throw new InvalidParamsException(InvalidParamsException::SHORTCUT_NOT_FOUND, "[$plugin] is not incompatible");
-        }
-
-        /* @var ShortcutInterface $money */
-        $money = Pay::get($plugin);
-
-        return $this->pay(
-            $this->mergeCommonPlugins($money->getPlugins(...$params)),
-            ...$params
-        );
+        return $this->call($plugin, ...$params);
     }
 
     /**
@@ -61,6 +63,8 @@ class Alipay extends AbstractProvider
     public function find($order): Collection
     {
         $order = is_array($order) ? $order : ['out_trade_no' => $order];
+
+        Event::dispatch(new Event\MethodCalled('wechat', __METHOD__, $order, null));
 
         return $this->__call('query', [$order]);
     }
@@ -77,6 +81,8 @@ class Alipay extends AbstractProvider
     {
         $order = is_array($order) ? $order : ['out_trade_no' => $order];
 
+        Event::dispatch(new Event\MethodCalled('wechat', __METHOD__, $order, null));
+
         return $this->__call('cancel', [$order]);
     }
 
@@ -92,6 +98,8 @@ class Alipay extends AbstractProvider
     {
         $order = is_array($order) ? $order : ['out_trade_no' => $order];
 
+        Event::dispatch(new Event\MethodCalled('wechat', __METHOD__, $order, null));
+
         return $this->__call('close', [$order]);
     }
 
@@ -103,7 +111,33 @@ class Alipay extends AbstractProvider
      */
     public function refund(array $order): Collection
     {
+        Event::dispatch(new Event\MethodCalled('wechat', __METHOD__, $order, null));
+
         return $this->__call('refund', [$order]);
+    }
+
+    /**
+     * @param array|\Psr\Http\Message\ServerRequestInterface|null $contents
+     *
+     * @throws \Yansongda\Pay\Exception\ContainerDependencyException
+     * @throws \Yansongda\Pay\Exception\ContainerException
+     * @throws \Yansongda\Pay\Exception\InvalidParamsException
+     * @throws \Yansongda\Pay\Exception\ServiceNotFoundException
+     */
+    public function callback($contents = null, ?array $params = null): Collection
+    {
+        Event::dispatch(new Event\CallbackReceived('alipay', $contents, $params, null));
+
+        $request = $this->getCallbackParams($contents);
+
+        return $this->pay(
+            [CallbackPlugin::class], $request->merge($params)->all()
+        );
+    }
+
+    public function success(): ResponseInterface
+    {
+        return new Response(200, [], 'success');
     }
 
     public function mergeCommonPlugins(array $plugins): array
@@ -111,8 +145,29 @@ class Alipay extends AbstractProvider
         return array_merge(
             [PreparePlugin::class],
             $plugins,
-            [FilterPlugin::class, SignPlugin::class, RadarPlugin::class],
-            [LaunchPlugin::class, PackerPlugin::class],
+            [SignPlugin::class, RadarPlugin::class],
+            [LaunchPlugin::class, ParserPlugin::class],
+        );
+    }
+
+    /**
+     * @param array|ServerRequestInterface|null $contents
+     */
+    protected function getCallbackParams($contents = null): Collection
+    {
+        if (is_array($contents)) {
+            return Collection::wrap($contents);
+        }
+
+        if ($contents instanceof ServerRequestInterface) {
+            return Collection::wrap('GET' === $contents->getMethod() ? $contents->getQueryParams() :
+                $contents->getParsedBody());
+        }
+
+        $request = ServerRequest::fromGlobals();
+
+        return Collection::wrap(
+            array_merge($request->getQueryParams(), $request->getParsedBody())
         );
     }
 }

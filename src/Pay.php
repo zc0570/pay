@@ -13,7 +13,10 @@ use Yansongda\Pay\Contract\ContainerInterface;
 use Yansongda\Pay\Contract\ServiceProviderInterface;
 use Yansongda\Pay\Exception\ContainerDependencyException;
 use Yansongda\Pay\Exception\ContainerException;
+use Yansongda\Pay\Exception\ContainerNotFoundException;
 use Yansongda\Pay\Exception\ServiceNotFoundException;
+use Yansongda\Pay\Provider\Alipay;
+use Yansongda\Pay\Provider\Wechat;
 use Yansongda\Pay\Service\AlipayServiceProvider;
 use Yansongda\Pay\Service\ConfigServiceProvider;
 use Yansongda\Pay\Service\EventServiceProvider;
@@ -21,6 +24,10 @@ use Yansongda\Pay\Service\HttpServiceProvider;
 use Yansongda\Pay\Service\LoggerServiceProvider;
 use Yansongda\Pay\Service\WechatServiceProvider;
 
+/**
+ * @method static Alipay alipay(array $config = [])
+ * @method static Wechat wechat(array $config = [])
+ */
 class Pay
 {
     /**
@@ -57,14 +64,12 @@ class Pay
     ];
 
     /**
-     * @var \DI\Container
+     * @var \DI\Container|null
      */
     private static $container = null;
 
     /**
      * Bootstrap.
-     *
-     * @author yansongda <me@yansongda.cn>
      *
      * @throws \Yansongda\Pay\Exception\ContainerDependencyException
      * @throws \Yansongda\Pay\Exception\ContainerException
@@ -78,8 +83,6 @@ class Pay
 
     /**
      * __callStatic.
-     *
-     * @author yansongda <me@yansongda.cn>
      *
      * @throws \Yansongda\Pay\Exception\ContainerDependencyException
      * @throws \Yansongda\Pay\Exception\ContainerException
@@ -99,15 +102,13 @@ class Pay
     /**
      * 初始化容器、配置等信息.
      *
-     * @author yansongda <me@yansongda.cn>
-     *
      * @throws \Yansongda\Pay\Exception\ContainerDependencyException
      * @throws \Yansongda\Pay\Exception\ContainerException
      * @throws \Yansongda\Pay\Exception\ServiceNotFoundException
      */
-    public static function config(array $config): Pay
+    public static function config(array $config = []): Pay
     {
-        if (empty($config) && self::hasContainer()) {
+        if (self::hasContainer() && !($config['_force'] ?? false)) {
             return self::get(Pay::class);
         }
 
@@ -117,9 +118,9 @@ class Pay
     /**
      * 定义.
      *
-     * @author yansongda <me@yansongda.cn>
-     *
      * @param mixed $value
+     *
+     * @throws \Yansongda\Pay\Exception\ContainerException
      */
     public static function set(string $name, $value): void
     {
@@ -127,11 +128,31 @@ class Pay
     }
 
     /**
-     * 获取服务.
-     *
      * @throws \Yansongda\Pay\Exception\ContainerDependencyException
      * @throws \Yansongda\Pay\Exception\ContainerException
      * @throws \Yansongda\Pay\Exception\ServiceNotFoundException
+     *
+     * @return mixed
+     */
+    public static function make(string $service, array $parameters = [])
+    {
+        try {
+            return Pay::getContainer()->make(...func_get_args());
+        } catch (NotFoundException $e) {
+            throw new ServiceNotFoundException($e->getMessage());
+        } catch (DependencyException $e) {
+            throw new ContainerDependencyException($e->getMessage());
+        } catch (Throwable $e) {
+            throw new ContainerException($e->getMessage());
+        }
+    }
+
+    /**
+     * 获取服务.
+     *
+     * @throws \Yansongda\Pay\Exception\ContainerDependencyException
+     * @throws \Yansongda\Pay\Exception\ServiceNotFoundException
+     * @throws \Yansongda\Pay\Exception\ContainerException
      *
      * @return mixed
      */
@@ -148,6 +169,9 @@ class Pay
         }
     }
 
+    /**
+     * @throws \Yansongda\Pay\Exception\ContainerException
+     */
     public static function has(string $service): bool
     {
         return Pay::getContainer()->has($service);
@@ -156,17 +180,19 @@ class Pay
     /**
      * getContainer.
      *
-     * @author yansongda <me@yansongda.cn>
+     * @throws \Yansongda\Pay\Exception\ContainerNotFoundException
      */
     public static function getContainer(): Container
     {
-        return self::$container;
+        if (self::hasContainer()) {
+            return self::$container;
+        }
+
+        throw new ContainerNotFoundException('You should init/config PAY first', ContainerException::CONTAINER_NOT_FOUND);
     }
 
     /**
      * has Container.
-     *
-     * @author yansongda <me@yansongda.cn>
      */
     public static function hasContainer(): bool
     {
@@ -175,8 +201,6 @@ class Pay
 
     /**
      * clear.
-     *
-     * @author yansongda <me@yansongda.cn>
      */
     public static function clear(): void
     {
@@ -185,8 +209,6 @@ class Pay
 
     /**
      * 注册服务.
-     *
-     * @author yansongda <me@yansongda.cn>
      *
      * @throws \Yansongda\Pay\Exception\ContainerDependencyException
      * @throws \Yansongda\Pay\Exception\ContainerException
@@ -203,8 +225,6 @@ class Pay
 
     /**
      * initContainer.
-     *
-     * @author yansongda <me@yansongda.cn>
      *
      * @throws \Yansongda\Pay\Exception\ContainerException
      */
@@ -227,8 +247,6 @@ class Pay
 
     /**
      * register services.
-     *
-     * @author yansongda <me@yansongda.cn>
      *
      * @throws \Yansongda\Pay\Exception\ContainerDependencyException
      * @throws \Yansongda\Pay\Exception\ContainerException

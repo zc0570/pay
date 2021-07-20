@@ -7,7 +7,6 @@ namespace Yansongda\Pay\Service;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Yansongda\Pay\Contract\EventDispatcherInterface;
 use Yansongda\Pay\Contract\ServiceProviderInterface;
-use Yansongda\Pay\Listener\KernelLogSubscriber;
 use Yansongda\Pay\Pay;
 
 class EventServiceProvider implements ServiceProviderInterface
@@ -19,14 +18,10 @@ class EventServiceProvider implements ServiceProviderInterface
      */
     public function register(Pay $pay, ?array $data = null): void
     {
-        if (!class_exists(EventDispatcher::class)) {
-            return;
+        if (class_exists(EventDispatcher::class)) {
+            $event = Pay::get(EventDispatcher::class);
+
+            Pay::set(EventDispatcherInterface::class, $event);
         }
-
-        $event = Pay::get(EventDispatcher::class);
-
-        $event->addSubscriber(new KernelLogSubscriber());
-
-        Pay::set(EventDispatcherInterface::class, $event);
     }
 }
